@@ -17,6 +17,21 @@ A comprehensive tool for auditing websites against **SEO** (Search Engine Optimi
 
 Core logic is shared — the same check rules power all three delivery methods.
 
+## CLI Usage
+
+```bash
+# Audit a URL (JSON report to stdout)
+npx geo-checklist https://example.com
+
+# Save report to file + human-readable summary to stderr
+npx geo-checklist https://example.com --output report.json --verbose
+
+# Development
+npm run dev -- https://example.com --verbose
+npm test
+npm run build
+```
+
 ## Documentation
 
 See [CHECKLIST.md](./CHECKLIST.md) for the full audit checklist (12 categories, 67 items).
