@@ -5,6 +5,7 @@ import { launchBrowser, closeBrowser, loadPage } from './browser';
 import type { AuditContext, AuditReport, CheckResult } from './types';
 import { allChecks } from './checks';
 import { buildReport } from './report';
+import { t, tf, intentTypesLabel } from './i18n';
 
 function log(msg: string): void {
   process.stderr.write(`\x1b[36m[AUDIT]\x1b[0m ${msg}\n`);
@@ -14,20 +15,20 @@ function dot(msg: string): void {
   process.stderr.write(`  \x1b[33m→\x1b[0m ${msg}\n`);
 }
 
-export async function runAudit(url: string, verbose = true): Promise<AuditReport> {
-  if (verbose) log(`开始审计 ${url}`);
+export async function runAudit(url: string, verbose = true, crawlOpts?: { maxPages?: number; maxDepth?: number }): Promise<AuditReport> {
+  if (verbose) log(tf('audit_start', { url }));
 
-  dot('抓取页面 HTML...');
+  dot(t('fetching_html'));
   const fetchResult = await fetchPage(url);
-  if (verbose) dot(`页面已抓取 (HTTP ${fetchResult.status}, ${fetchResult.loadTimeMs}ms)`);
+  if (verbose) dot(tf('page_fetched', { status: fetchResult.status, loadTimeMs: fetchResult.loadTimeMs }));
 
-  dot('获取 robots.txt...');
+  dot(t('fetching_robots'));
   const robotsTxt = await fetchRobotsTxt(url);
-  if (verbose) dot(`robots.txt ${robotsTxt ? '已找到' : '未找到'}`);
+  if (verbose) dot(robotsTxt ? t('robots_found') : t('robots_not_found'));
 
-  dot('获取 sitemap...');
+  dot(t('fetching_sitemap'));
   const sitemapXml = await fetchSitemap(url);
-  if (verbose) dot(`sitemap ${sitemapXml ? '已找到' : '未找到'}`);
+  if (verbose) dot(sitemapXml ? t('sitemap_found') : t('sitemap_not_found'));
 
   const doc = parseHtml(fetchResult.html);
 
@@ -36,16 +37,16 @@ export async function runAudit(url: string, verbose = true): Promise<AuditReport
   let browserUrl: string | undefined;
   let browserCtx: { browser: import('playwright').Browser; page: import('playwright').Page } | undefined;
 
-  if (verbose) log('启动浏览器 (Chromium)...');
+  if (verbose) log(t('launching_browser'));
   try {
     browserCtx = await launchBrowser();
-    if (verbose) dot('页面加载中...');
+    if (verbose) dot(t('loading_page'));
     await loadPage(browserCtx.page, url);
     browserHtml = await browserCtx.page.content();
     browserUrl = browserCtx.page.url();
-    if (verbose) dot(`浏览器页面已渲染: ${browserUrl}`);
+    if (verbose) dot(tf('browser_rendered', { url: browserUrl }));
   } catch {
-    if (verbose) dot('浏览器渲染失败，使用静态 HTML');
+    if (verbose) dot(t('browser_failed'));
   }
 
   const ctx: AuditContext = {
@@ -62,18 +63,18 @@ export async function runAudit(url: string, verbose = true): Promise<AuditReport
     browserUrl,
   };
 
-  if (verbose) log(`运行 ${allChecks.length} 项静态检查...`);
+  if (verbose) log(tf('running_static_checks', { count: allChecks.length }));
   const results: CheckResult[] = allChecks.map((check) => check.execute(ctx));
 
   // Run browser-based checks that need the page object directly
   if (browserCtx?.page) {
-    if (verbose) log('运行浏览器检查...');
-    await runBrowserChecks(ctx, browserCtx.page, results, verbose);
-    if (verbose) dot('关闭浏览器');
+    if (verbose) log(t('running_browser_checks'));
+    await runBrowserChecks(ctx, browserCtx.page, results, verbose, crawlOpts);
+    if (verbose) dot(t('closing_browser'));
     await closeBrowser(browserCtx);
   }
 
-  if (verbose) log('生成报告...');
+  if (verbose) log(t('generating_report'));
   return buildReport(ctx, results);
 }
 
@@ -86,30 +87,22 @@ async function runBrowserChecks(
   page: Page,
   results: CheckResult[],
   verbose: boolean,
+  crawlOpts?: { maxPages?: number; maxDepth?: number },
 ): Promise<void> {
   const { checkLinks, check404Page, testMobileResponsive, detectInterstitials, detectCaptcha, extractDates, crawlLocalPages, analyzeIntentCoverage } = await import('./browser');
-
-  const intentTypesLabel: Record<string, string> = {
-    informational: '信息型',
-    howto: '操作型',
-    comparison: '比较型',
-    question: '问答型',
-    commercial: '商业/交易',
-  };
 
   const url = ctx.browserUrl || ctx.finalUrl;
 
   for (const result of results) {
     switch (result.id) {
       case '5.2': {
-        if (verbose) dot('[5.2] 检查内部链接是否损坏...');
+        if (verbose) dot(t('check_52_links'));
         const linkResults = await checkLinks(page, url);
         if (verbose) {
-          if (linkResults.broken.length > 0) {
-            dot(`发现 ${linkResults.broken.length} 个损坏链接`);
-          } else {
-            dot('无损坏链接');
-          }
+          dot(linkResults.broken.length > 0
+            ? tf('check_52_broken', { count: linkResults.broken.length })
+            : t('check_52_ok')
+          );
         }
         if (linkResults.broken.length === 0) {
           result.passed = true;
@@ -122,14 +115,13 @@ async function runBrowserChecks(
         break;
       }
       case '5.3': {
-        if (verbose) dot('[5.3] 检查链接重定向链...');
+        if (verbose) dot(t('check_53_redirects'));
         const linkResults = await checkLinks(page, url);
         if (verbose) {
-          if (linkResults.redirectChains.length > 0) {
-            dot(`发现 ${linkResults.redirectChains.length} 条重定向链`);
-          } else {
-            dot('无重定向链');
-          }
+          dot(linkResults.redirectChains.length > 0
+            ? tf('check_53_found', { count: linkResults.redirectChains.length })
+            : t('check_53_ok')
+          );
         }
         if (linkResults.redirectChains.length === 0) {
           result.passed = true;
@@ -142,7 +134,7 @@ async function runBrowserChecks(
         break;
       }
       case '6.3': {
-        if (verbose) dot('[6.3] 测试移动端响应式布局...');
+        if (verbose) dot(t('check_63_mobile'));
         const mobileResult = await testMobileResponsive(page, url);
         result.passed = mobileResult.passed;
         result.details = mobileResult.details;
@@ -150,7 +142,7 @@ async function runBrowserChecks(
         break;
       }
       case '6.4': {
-        if (verbose) dot('[6.4] 检测弹窗/遮罩层...');
+        if (verbose) dot(t('check_64_overlay'));
         const interstitialResult = await detectInterstitials(page, url);
         result.passed = interstitialResult.passed;
         result.details = interstitialResult.details;
@@ -158,7 +150,7 @@ async function runBrowserChecks(
         break;
       }
       case '6.6': {
-        if (verbose) dot('[6.6] 测试 404 页面...');
+        if (verbose) dot(t('check_66_404'));
         const notFoundResult = await check404Page(page, url);
         result.passed = notFoundResult.passed;
         result.details = notFoundResult.details;
@@ -166,23 +158,25 @@ async function runBrowserChecks(
         break;
       }
       case '11.3': {
-        if (verbose) dot('[11.3] 检测 CAPTCHA/机器人验证...');
+        if (verbose) dot(t('check_113_captcha'));
         const captchaResult = await detectCaptcha(page, url);
         result.passed = captchaResult.passed;
         result.details = captchaResult.details;
         break;
       }
       case '3.4': {
-        if (verbose) dot('[3.4] 提取页面日期（内容时效性）...');
+        if (verbose) dot(t('check_34_dates'));
         const dateResult = await extractDates(page);
         result.passed = dateResult.passed;
         result.details = dateResult.details;
         break;
       }
       case '3.2': {
-        if (verbose) dot('[3.2] 爬取内部页面，分析内容意图...');
-        const localPages = await crawlLocalPages(page, url, 20, verbose);
-        if (verbose) dot(`已爬取 ${localPages.length} 个内部页面`);
+        if (verbose) dot(t('check_32_crawling'));
+        const maxPages = crawlOpts?.maxPages ?? 20;
+        const maxDepth = crawlOpts?.maxDepth ?? 1;
+        const localPages = await crawlLocalPages(page, url, maxPages, verbose, maxDepth);
+        if (verbose) dot(tf('check_32_crawled', { count: localPages.length }));
         const intent = analyzeIntentCoverage(localPages);
         result.passed = intent.passed;
         const coveredCount = Object.values(intent.coverage).filter((v) => v.covered).length;
@@ -191,10 +185,14 @@ async function runBrowserChecks(
           const label = intentTypesLabel[type] || type;
           return v.covered ? `${label}: ✅` : `${label}: ❌`;
         });
-        result.details = `${coveredCount}/${totalTypes} 意图类型覆盖: ${detailsParts.join(' | ')}`;
+        result.details = tf('intent_coverage', {
+          covered: coveredCount,
+          total: totalTypes,
+          details: detailsParts.join(' | '),
+        });
         if (intent.missingTypes.length > 0) {
-          const missingLabels = intent.missingTypes.map((t) => intentTypesLabel[t] || t);
-          result.recommendation = `缺少内容类型: ${missingLabels.join(', ')}`;
+          const missingLabels = intent.missingTypes.map((t2) => intentTypesLabel[t2] || t2);
+          result.recommendation = tf('intent_missing', { types: missingLabels.join(', ') });
         }
         break;
       }

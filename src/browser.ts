@@ -1,6 +1,7 @@
 import { chromium } from 'playwright';
 import type { Browser, Page } from 'playwright';
 import { FETCH_TIMEOUT_MS } from './config';
+import { t, tf } from './i18n';
 
 export interface BrowserContext {
   browser: Browser;
@@ -301,62 +302,100 @@ export interface PageSummary {
   metaDescription: string;
 }
 
-export async function crawlLocalPages(page: Page, baseUrl: string, maxPages: number = 20, verbose = false): Promise<PageSummary[]> {
-  // Collect internal links
-  const internalLinks = await page.evaluate((baseUrl) => {
-    const base = new URL(baseUrl);
-    const anchors = Array.from(document.querySelectorAll('a[href]'));
-    const seen = new Set<string>();
-    const urls: string[] = [];
+export async function crawlLocalPages(page: Page, baseUrl: string, maxPages: number = 20, verbose = false, maxDepth: number = 1): Promise<PageSummary[]> {
+  const base = new URL(baseUrl);
+  const allSeen = new Set<string>(); // all URLs discovered
+  const crawledUrls = new Set<string>(); // pages already fetched & summarized
 
-    for (const a of anchors) {
-      try {
-        const href = a.href;
-        if (!href || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:')) continue;
-        const url = new URL(href, base.href);
-        if (url.hostname === base.hostname) {
-          const key = url.pathname + url.hash;
-          if (!seen.has(key)) {
-            seen.add(key);
+  // Collect internal links from a given page URL (returns array of hrefs)
+  const collectLinks = async (pageUrl: string): Promise<string[]> => {
+    await page.goto(pageUrl, { waitUntil: 'domcontentloaded', timeout: 8000 });
+    return await page.evaluate((baseUrl) => {
+      const base = new URL(baseUrl);
+      const anchors = Array.from(document.querySelectorAll('a[href]'));
+      const urls: string[] = [];
+      for (const a of anchors) {
+        try {
+          const href = a.href;
+          if (!href || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:')) continue;
+          const url = new URL(href, base.href);
+          // Same hostname, and strip fragment for dedup
+          if (url.hostname === base.hostname) {
+            const key = url.pathname + (url.search ? '?' + url.search : '');
             urls.push(url.href);
+          }
+        } catch { /* skip */ }
+      }
+      return [...new Set(urls)];
+    }, baseUrl);
+  };
+
+  // Extract summary from current page
+  const extractSummary = async (): Promise<PageSummary> => {
+    return await page.evaluate(() => {
+      const title = document.title || '';
+      const h1s = Array.from(document.querySelectorAll('h1')).map((h) => h.textContent?.trim() || '');
+      const headings = Array.from(document.querySelectorAll('h1, h2, h3')).map((h) => h.textContent?.trim() || '').filter(Boolean);
+      const metaDesc = (document.querySelector('meta[name="description"]') as HTMLMetaElement | null)?.content || '';
+      const body = document.body;
+      const clone = body.cloneNode(true) as HTMLElement;
+      clone.querySelectorAll('script, style, noscript, nav, footer, header, [role="banner"]').forEach((el) => el.remove());
+      const bodyText = clone.textContent?.trim().slice(0, 2000) || '';
+      return { title, h1: h1s.join('; '), headings, metaDescription: metaDesc, bodyText };
+    });
+  };
+
+  // Seed links from homepage
+  const seedLinks = await collectLinks(baseUrl);
+  seedLinks.forEach((u) => allSeen.add(new URL(u).pathname + (new URL(u).search || '')));
+
+  const queue: string[] = [...seedLinks]; // BFS queue
+  const pages: PageSummary[] = [];
+
+  // Crawl homepage first
+  if (verbose) process.stderr.write(`    ${tf('crawling_page', { n: 1, url: baseUrl })}\n`);
+  try {
+    await page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 8000 });
+    pages.push({ url: baseUrl, ...(await extractSummary()) });
+    crawledUrls.add(baseUrl);
+  } catch {
+    if (verbose) process.stderr.write(`    ${t('crawl_failed')}\n`);
+  }
+
+  // BFS by depth level
+  let depth = 1;
+  let count = pages.length;
+
+  while (queue.length > 0 && depth <= maxDepth && pages.length < maxPages) {
+    if (verbose) process.stderr.write(`    ${tf('crawl_depth', { depth })}\n`);
+    const levelSize = queue.length;
+    for (let i = 0; i < levelSize && pages.length < maxPages; i++) {
+      const link = queue.shift()!;
+      if (crawledUrls.has(link)) continue;
+
+      count++;
+      if (verbose) process.stderr.write(`    ${tf('crawling_page', { n: count, url: link })}\n`);
+      try {
+        await page.goto(link, { waitUntil: 'domcontentloaded', timeout: 8000 });
+        pages.push({ url: link, ...(await extractSummary()) });
+        crawledUrls.add(link);
+
+        // If we still have depth budget, collect links from this page
+        if (depth < maxDepth) {
+          const childLinks = await collectLinks(link);
+          for (const cl of childLinks) {
+            const key = new URL(cl).pathname + (new URL(cl).search || '');
+            if (!allSeen.has(key)) {
+              allSeen.add(key);
+              queue.push(cl);
+            }
           }
         }
       } catch {
-        // Skip invalid URLs
+        if (verbose) process.stderr.write(`    ${t('crawl_failed')}\n`);
       }
     }
-    return urls;
-  }, baseUrl);
-
-  if (verbose) {
-    process.stderr.write(`    发现 ${internalLinks.length} 个内部链接，最多爬取 ${Math.min(maxPages, internalLinks.length)} 页\n`);
-  }
-
-  const pages: PageSummary[] = [];
-  const toCrawl = internalLinks.slice(0, maxPages);
-
-  for (let i = 0; i < toCrawl.length; i++) {
-    const link = toCrawl[i];
-    try {
-      if (verbose) process.stderr.write(`    [${i + 1}/${toCrawl.length}] 抓取 ${link}\n`);
-      await page.goto(link, { waitUntil: 'domcontentloaded', timeout: 8000 });
-      const summary = await page.evaluate(() => {
-        const title = document.title || '';
-        const h1s = Array.from(document.querySelectorAll('h1')).map((h) => h.textContent?.trim() || '');
-        const headings = Array.from(document.querySelectorAll('h1, h2, h3')).map((h) => h.textContent?.trim() || '').filter(Boolean);
-        const metaDesc = (document.querySelector('meta[name="description"]') as HTMLMetaElement | null)?.content || '';
-        // Get visible text (skip script/style/nav/footer)
-        const body = document.body;
-        const clone = body.cloneNode(true) as HTMLElement;
-        clone.querySelectorAll('script, style, noscript, nav, footer, header, [role="banner"]').forEach((el) => el.remove());
-        const bodyText = clone.textContent?.trim().slice(0, 2000) || '';
-        return { title, h1: h1s.join('; '), headings, metaDescription: metaDesc, bodyText };
-      });
-
-      pages.push({ url: link, ...summary });
-    } catch {
-      if (verbose) process.stderr.write(`    → 页面抓取失败，跳过\n`);
-    }
+    depth++;
   }
 
   // Navigate back to the original page

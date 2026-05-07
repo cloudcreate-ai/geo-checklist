@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import type { AuditContext, AuditReport, CheckResult } from './types';
+import { t, tf } from './i18n';
 
 export function buildReport(ctx: AuditContext, checks: CheckResult[]): AuditReport {
   const passed = checks.filter((c) => c.passed).length;
@@ -28,13 +29,13 @@ export function printMarkdown(report: AuditReport): string {
   const lines: string[] = [];
   const scoreBadge = (s: number) => (s >= 80 ? '🟢' : s >= 50 ? '🟡' : '🔴');
 
-  lines.push(`# Geo-Checklist SEO & GEO Audit`);
+  lines.push(`# ${t('report_title')}`);
   lines.push('');
-  lines.push(`- **URL**: ${report.url}`);
-  lines.push(`- **时间**: ${new Date(report.timestamp).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`);
-  lines.push(`- **总分**: ${scoreBadge(report.score)} ${report.score} / 100`);
-  lines.push(`- **加载时间**: ${report.metadata.loadTimeMs}ms | **状态码**: ${report.metadata.statusCode}`);
-  lines.push(`- **检查总数**: ${report.totalChecks} 项（${report.passed} 通过 / ${report.failed} 失败 / ${report.warnings} info）`);
+  lines.push(`- **${t('report_url')}**: ${report.url}`);
+  lines.push(`- **${t('report_time')}**: ${new Date(report.timestamp).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`);
+  lines.push(`- **${t('report_score')}**: ${scoreBadge(report.score)} ${report.score} / 100`);
+  lines.push(`- **${t('report_load')}**: ${report.metadata.loadTimeMs}ms | **${t('report_status')}**: ${report.metadata.statusCode}`);
+  lines.push(`- **${t('report_checks')}**: ${report.totalChecks} ${t('report_checks')}（${report.passed} ${t('report_passed')} / ${report.failed} ${t('report_failed')} / ${report.warnings} ${t('report_info')}）`);
   lines.push('');
 
   const categories = new Map<string, CheckResult[]>();
@@ -49,13 +50,12 @@ export function printMarkdown(report: AuditReport): string {
     lines.push(`## ${category}`);
     lines.push('');
 
-    // Summary table
-    lines.push(`| # | 检查项 | 状态 | 详情 | 建议 |`);
+    lines.push(`| # | ${t('report_checks')} | ${t('report_status')} | ${t('report_checks')} | ${t('report_action')} |`);
     lines.push(`|---|--------|------|------|------|`);
 
     for (const check of checks) {
-      const status = check.passed ? '✅ 通过' : check.severity === 'info' ? '⏭️ 信息' : '❌ 失败';
-      const statusMd = status === '❌ 失败' ? `**${status}**` : status;
+      const status = check.passed ? t('status_pass') : check.severity === 'info' ? t('status_info') : t('status_fail');
+      const statusMd = !check.passed && check.severity !== 'info' ? `**${status}**` : status;
       const details = check.details;
       const rec = check.recommendation || (check.passed ? '—' : '');
       lines.push(`| ${check.id} | ${check.title} | ${statusMd} | ${details} | ${rec} |`);
@@ -64,7 +64,7 @@ export function printMarkdown(report: AuditReport): string {
 
     // Category summary
     const catPassed = checks.filter((c) => c.passed).length;
-    lines.push(`**小结**: ${catPassed}/${checks.length} 通过。`);
+    lines.push(`**${t('report_summary')}**: ${catPassed}/${checks.length} ${t('report_passed')}。`);
     lines.push('');
   }
 
@@ -75,13 +75,13 @@ export function printMarkdown(report: AuditReport): string {
   if (failedChecks.length > 0 || warningChecks.length > 0) {
     lines.push(`---`);
     lines.push('');
-    lines.push(`## 修复优先级总结`);
+    lines.push(`## ${t('report_fix_priority')}`);
     lines.push('');
 
     if (failedChecks.length > 0) {
-      lines.push(`### 立即修复（${failedChecks.length} 项）`);
+      lines.push(`### ${t('report_fix_now')}（${failedChecks.length} ${t('report_checks')}）`);
       lines.push('');
-      lines.push(`| 优先级 | 检查项 | 操作 |`);
+      lines.push(`| ${t('report_checks')} | ${t('report_checks')} | ${t('report_action')} |`);
       lines.push(`|--------|--------|------|`);
       for (const c of failedChecks) {
         lines.push(`| **P0** | ${c.id} ${c.title} | ${c.recommendation || c.details} |`);
@@ -90,9 +90,9 @@ export function printMarkdown(report: AuditReport): string {
     }
 
     if (warningChecks.length > 0) {
-      lines.push(`### 建议优化（${warningChecks.length} 项）`);
+      lines.push(`### ${t('report_optimize')}（${warningChecks.length} ${t('report_checks')}）`);
       lines.push('');
-      lines.push(`| 优先级 | 检查项 | 操作 |`);
+      lines.push(`| ${t('report_checks')} | ${t('report_checks')} | ${t('report_action')} |`);
       lines.push(`|--------|--------|------|`);
       for (const c of warningChecks) {
         lines.push(`| P1 | ${c.id} ${c.title} | ${c.recommendation || c.details} |`);
@@ -114,11 +114,11 @@ export function printSummary(report: AuditReport): void {
   };
 
   process.stderr.write('\n');
-  process.stderr.write(chalk.bold('  Geo-Checklist SEO & GEO Audit\n'));
-  process.stderr.write(chalk.dim('  URL: ').concat(`${report.url}\n`));
-  process.stderr.write(chalk.dim('  Score: ').concat(`${scoreColor(report.score)(`${report.score}/100`)}\n`));
-  process.stderr.write(chalk.dim('  Checks: ').concat(`${report.passed} passed, ${report.failed} failed, ${report.warnings} info\n`));
-  process.stderr.write(chalk.dim('  Load: ').concat(`${report.metadata.loadTimeMs}ms | HTTP ${report.metadata.statusCode}\n`));
+  process.stderr.write(chalk.bold(`  ${t('report_title')}\n`));
+  process.stderr.write(chalk.dim(`  ${t('report_url')}: `).concat(`${report.url}\n`));
+  process.stderr.write(chalk.dim(`  ${t('report_score')}: `).concat(`${scoreColor(report.score)(`${report.score}/100`)}\n`));
+  process.stderr.write(chalk.dim(`  ${t('report_checks')}: `).concat(`${report.passed} ${t('report_passed')}, ${report.failed} ${t('report_failed')}, ${report.warnings} ${t('report_info')}\n`));
+  process.stderr.write(chalk.dim(`  ${t('report_load')}: `).concat(`${report.metadata.loadTimeMs}ms | HTTP ${report.metadata.statusCode}\n`));
   process.stderr.write('\n');
 
   let lastCategory = '';
