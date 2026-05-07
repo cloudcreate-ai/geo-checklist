@@ -1,6 +1,6 @@
 import { chromium } from 'playwright';
 import type { Browser, Page } from 'playwright';
-import { FETCH_TIMEOUT_MS } from './config';
+import { FETCH_TIMEOUT_MS, BROWSER_PAGE_TIMEOUT_MS } from './config';
 import { t, tf } from './i18n';
 
 export interface BrowserContext {
@@ -18,7 +18,7 @@ export async function closeBrowser(ctx: BrowserContext): Promise<void> {
   await ctx.browser.close();
 }
 
-export async function loadPage(page: Page, url: string, timeoutMs: number = FETCH_TIMEOUT_MS): Promise<void> {
+export async function loadPage(page: Page, url: string, timeoutMs: number = BROWSER_PAGE_TIMEOUT_MS): Promise<void> {
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
 }
 
@@ -309,7 +309,7 @@ export async function crawlLocalPages(page: Page, baseUrl: string, maxPages: num
 
   // Collect internal links from a given page URL (returns array of hrefs)
   const collectLinks = async (pageUrl: string): Promise<string[]> => {
-    await page.goto(pageUrl, { waitUntil: 'domcontentloaded', timeout: 8000 });
+    await page.goto(pageUrl, { waitUntil: 'domcontentloaded', timeout: BROWSER_PAGE_TIMEOUT_MS });
     return await page.evaluate((baseUrl) => {
       const base = new URL(baseUrl);
       const anchors = Array.from(document.querySelectorAll('a[href]'));
@@ -355,7 +355,7 @@ export async function crawlLocalPages(page: Page, baseUrl: string, maxPages: num
   // Crawl homepage first
   if (verbose) process.stderr.write(`    ${tf('crawling_page', { n: 1, url: baseUrl })}\n`);
   try {
-    await page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 8000 });
+    await page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: BROWSER_PAGE_TIMEOUT_MS });
     pages.push({ url: baseUrl, ...(await extractSummary()) });
     crawledUrls.add(baseUrl);
   } catch {
@@ -376,7 +376,7 @@ export async function crawlLocalPages(page: Page, baseUrl: string, maxPages: num
       count++;
       if (verbose) process.stderr.write(`    ${tf('crawling_page', { n: count, url: link })}\n`);
       try {
-        await page.goto(link, { waitUntil: 'domcontentloaded', timeout: 8000 });
+        await page.goto(link, { waitUntil: 'domcontentloaded', timeout: BROWSER_PAGE_TIMEOUT_MS });
         pages.push({ url: link, ...(await extractSummary()) });
         crawledUrls.add(link);
 
@@ -400,7 +400,7 @@ export async function crawlLocalPages(page: Page, baseUrl: string, maxPages: num
 
   // Navigate back to the original page
   try {
-    await page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 8000 });
+    await page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: BROWSER_PAGE_TIMEOUT_MS });
   } catch {
     // If we can't navigate back, the caller should handle this
   }
