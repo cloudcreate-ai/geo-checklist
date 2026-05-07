@@ -48,6 +48,9 @@ export async function runAudit(url: string, verbose = true, crawlOpts?: { maxPag
       if (verbose) dot(tf('browser_rendered', { url: browserUrl }));
     } catch {
       if (verbose) dot(t('browser_failed'));
+      // Browser launched but page failed — close it to avoid stale page errors
+      if (browserCtx) await closeBrowser(browserCtx);
+      browserCtx = undefined;
     }
   } else if (verbose) {
     dot(t('fast_skipped'));
