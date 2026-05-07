@@ -30,6 +30,10 @@ export interface AuditContext {
   finalUrl: string;
   robotsTxt?: string;
   sitemapXml?: string;
+  /** Browser-rendered HTML (after JS execution) */
+  browserHtml?: string;
+  /** Playwright page URL (may differ from finalUrl after redirects) */
+  browserUrl?: string;
 }
 
 export interface AuditReport {

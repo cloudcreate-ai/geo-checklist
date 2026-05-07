@@ -34,7 +34,7 @@ export const contentQualityChecks: CheckDefinition[] = [
     id: '3.4',
     title: 'Content is up-to-date (freshness signal)',
     severity: 'info',
-    execute: () => ({ id: '3.4', category: CATEGORY, title: 'Content is up-to-date (freshness signal)', severity: 'info', passed: false, details: 'Check requires date extraction heuristics. Deferred to Phase 2.' }),
+    execute: () => ({ id: '3.4', category: CATEGORY, title: 'Content is up-to-date (freshness signal)', severity: 'info', passed: false, details: 'Requires browser rendering check.' }),
   },
   {
     id: '3.5',

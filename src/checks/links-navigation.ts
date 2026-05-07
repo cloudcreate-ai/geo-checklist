@@ -27,13 +27,13 @@ export const linksNavigationChecks: CheckDefinition[] = [
     id: '5.2',
     title: 'No broken links (404s)',
     severity: 'critical',
-    execute: () => ({ id: '5.2', category: CATEGORY, title: 'No broken links (404s)', severity: 'critical', passed: false, details: 'Check requires fetching every link on page. Deferred to Phase 2.' }),
+    execute: () => ({ id: '5.2', category: CATEGORY, title: 'No broken links (404s)', severity: 'critical', passed: false, details: 'Requires browser rendering check.' }),
   },
   {
     id: '5.3',
     title: 'No redirect chains',
     severity: 'warning',
-    execute: () => ({ id: '5.3', category: CATEGORY, title: 'No redirect chains', severity: 'warning', passed: false, details: 'Check requires following redirect chains per link. Deferred to Phase 2.' }),
+    execute: () => ({ id: '5.3', category: CATEGORY, title: 'No redirect chains', severity: 'warning', passed: false, details: 'Requires browser rendering check.' }),
   },
   {
     id: '5.4',

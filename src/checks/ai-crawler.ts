@@ -57,7 +57,7 @@ export const aiCrawlerChecks: CheckDefinition[] = [
     id: '11.3',
     title: 'No aggressive bot-detection (CAPTCHA walls)',
     severity: 'warning',
-    execute: () => ({ id: '11.3', category: CATEGORY, title: 'No aggressive bot-detection (CAPTCHA walls)', severity: 'warning', passed: false, details: 'Check requires browser simulation to detect CAPTCHAs. Deferred.' }),
+    execute: () => ({ id: '11.3', category: CATEGORY, title: 'No aggressive bot-detection (CAPTCHA walls)', severity: 'warning', passed: false, details: 'Requires browser rendering check.' }),
   },
   {
     id: '11.4',

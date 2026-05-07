@@ -31,13 +31,13 @@ export const technicalChecks: CheckDefinition[] = [
     id: '6.3',
     title: 'Mobile-responsive design',
     severity: 'critical',
-    execute: () => ({ id: '6.3', category: CATEGORY, title: 'Mobile-responsive design', severity: 'critical', passed: false, details: 'Check requires headless browser or multi-page analysis. Deferred to Phase 2.' }),
+    execute: () => ({ id: '6.3', category: CATEGORY, title: 'Mobile-responsive design', severity: 'critical', passed: false, details: 'Requires browser rendering check.' }),
   },
   {
     id: '6.4',
     title: 'No intrusive interstitials',
     severity: 'warning',
-    execute: () => ({ id: '6.4', category: CATEGORY, title: 'No intrusive interstitials', severity: 'warning', passed: false, details: 'Check requires headless browser visual analysis. Deferred to Phase 2.' }),
+    execute: () => ({ id: '6.4', category: CATEGORY, title: 'No intrusive interstitials', severity: 'warning', passed: false, details: 'Requires browser rendering check.' }),
   },
   {
     id: '6.5',
@@ -55,7 +55,7 @@ export const technicalChecks: CheckDefinition[] = [
     id: '6.6',
     title: '404 page exists and is helpful',
     severity: 'warning',
-    execute: () => ({ id: '6.6', category: CATEGORY, title: '404 page exists and is helpful', severity: 'warning', passed: false, details: 'Check requires crawling a non-existent URL. Deferred to Phase 2.' }),
+    execute: () => ({ id: '6.6', category: CATEGORY, title: '404 page exists and is helpful', severity: 'warning', passed: false, details: 'Requires browser rendering check.' }),
   },
   {
     id: '6.7',
