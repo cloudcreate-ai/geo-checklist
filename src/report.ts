@@ -54,10 +54,11 @@ export function printMarkdown(report: AuditReport): string {
     lines.push(`|---|--------|------|------|------|`);
 
     for (const check of checks) {
-      const status = check.passed ? '**通过**' : check.severity === 'info' ? '跳过/信息' : '**失败**';
+      const status = check.passed ? '✅ 通过' : check.severity === 'info' ? '⏭️ 信息' : '❌ 失败';
+      const statusMd = status === '❌ 失败' ? `**${status}**` : status;
       const details = check.details;
       const rec = check.recommendation || (check.passed ? '—' : '');
-      lines.push(`| ${check.id} | ${check.title} | ${status} | ${details} | ${rec} |`);
+      lines.push(`| ${check.id} | ${check.title} | ${statusMd} | ${details} | ${rec} |`);
     }
     lines.push('');
 
