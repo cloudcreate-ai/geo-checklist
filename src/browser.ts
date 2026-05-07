@@ -290,3 +290,130 @@ export async function extractDates(page: Page): Promise<{ passed: boolean; detai
 
   return { passed: false, details: 'No publication or modification dates found on the page.', dates: [] };
 }
+
+// 3.2: Crawl local pages and analyze intent coverage
+export interface PageSummary {
+  url: string;
+  title: string;
+  h1: string;
+  headings: string[];
+  bodyText: string;
+  metaDescription: string;
+}
+
+export async function crawlLocalPages(page: Page, baseUrl: string, maxPages: number = 20): Promise<PageSummary[]> {
+  // Collect internal links
+  const internalLinks = await page.evaluate((baseUrl) => {
+    const base = new URL(baseUrl);
+    const anchors = Array.from(document.querySelectorAll('a[href]'));
+    const seen = new Set<string>();
+    const urls: string[] = [];
+
+    for (const a of anchors) {
+      try {
+        const href = a.href;
+        if (!href || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:')) continue;
+        const url = new URL(href, base.href);
+        if (url.hostname === base.hostname) {
+          const key = url.pathname + url.hash;
+          if (!seen.has(key)) {
+            seen.add(key);
+            urls.push(url.href);
+          }
+        }
+      } catch {
+        // Skip invalid URLs
+      }
+    }
+    return urls;
+  }, baseUrl);
+
+  const pages: PageSummary[] = [];
+
+  for (const link of internalLinks.slice(0, maxPages)) {
+    try {
+      await page.goto(link, { waitUntil: 'domcontentloaded', timeout: 8000 });
+      const summary = await page.evaluate(() => {
+        const title = document.title || '';
+        const h1s = Array.from(document.querySelectorAll('h1')).map((h) => h.textContent?.trim() || '');
+        const headings = Array.from(document.querySelectorAll('h1, h2, h3')).map((h) => h.textContent?.trim() || '').filter(Boolean);
+        const metaDesc = (document.querySelector('meta[name="description"]') as HTMLMetaElement | null)?.content || '';
+        // Get visible text (skip script/style/nav/footer)
+        const body = document.body;
+        const clone = body.cloneNode(true) as HTMLElement;
+        clone.querySelectorAll('script, style, noscript, nav, footer, header, [role="banner"]').forEach((el) => el.remove());
+        const bodyText = clone.textContent?.trim().slice(0, 2000) || '';
+        return { title, h1: h1s.join('; '), headings, metaDescription: metaDesc, bodyText };
+      });
+
+      pages.push({ url: link, ...summary });
+    } catch {
+      // Skip pages that fail to load
+    }
+  }
+
+  // Navigate back to the original page
+  try {
+    await page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 8000 });
+  } catch {
+    // If we can't navigate back, the caller should handle this
+  }
+
+  return pages;
+}
+
+export interface IntentAnalysis {
+  passed: boolean;
+  coverage: Record<string, { covered: boolean; pageUrl?: string; reason: string }>;
+  missingTypes: string[];
+}
+
+export function analyzeIntentCoverage(pages: PageSummary[]): IntentAnalysis {
+  const intentTypes = {
+    informational: {
+      pattern: /^(what|how|why|when|where|who|is|are|can|does|should|guide|tutorial|introduction|overview|learn|about)/i,
+      label: 'Informational (What/Why/How)',
+    },
+    howto: {
+      pattern: /^(how to|steps|tutorial|guide|setup|install|configure|create|build|make|get started)/i,
+      label: 'How-to / Tutorial',
+    },
+    comparison: {
+      pattern: /(vs\.?|versus|alternative|compare|comparison|best |top |better than|instead of|similar to)/i,
+      label: 'Comparison / Alternatives',
+    },
+    question: {
+      pattern: /\b(what|how|why|when|where|who|which|does|is|are|can|should)\b.*\?/i,
+      label: 'Q&A / FAQ',
+    },
+    commercial: {
+      pattern: /(pricing|buy|plan|free|premium|subscription|enterprise|feature|service|product|solution)/i,
+      label: 'Commercial / Transactional',
+    },
+  };
+
+  const coverage: Record<string, { covered: boolean; pageUrl?: string; reason: string }> = {};
+
+  for (const [type, { pattern, label }] of Object.entries(intentTypes)) {
+    const matchingPage = pages.find((p) => {
+      const allText = [p.title, p.h1, ...p.headings, p.metaDescription, p.bodyText].join(' ');
+      return pattern.test(allText);
+    });
+
+    if (matchingPage) {
+      coverage[type] = { covered: true, pageUrl: matchingPage.url, reason: `Found in "${matchingPage.title}"` };
+    } else {
+      coverage[type] = { covered: false, reason: `No page covers ${label.toLowerCase()} intent` };
+    }
+  }
+
+  const missingTypes = Object.entries(coverage)
+    .filter(([, v]) => !v.covered)
+    .map(([k]) => k);
+
+  // Pass if at least 2 of 5 intent types are covered
+  const coveredCount = Object.values(coverage).filter((v) => v.covered).length;
+  const passed = coveredCount >= 2;
+
+  return { passed, coverage, missingTypes };
+}

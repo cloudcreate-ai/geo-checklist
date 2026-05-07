@@ -22,7 +22,7 @@ export const contentQualityChecks: CheckDefinition[] = [
     id: '3.2',
     title: 'Content answers user intent for target query',
     severity: 'critical',
-    execute: () => ({ id: '3.2', category: CATEGORY, title: 'Content answers user intent for target query', severity: 'critical', passed: false, details: 'Check requires NLP/semantic analysis. Deferred to Phase 2.' }),
+    execute: () => ({ id: '3.2', category: CATEGORY, title: 'Content answers user intent for target query', severity: 'critical', passed: false, details: 'Requires multi-page crawl analysis.' }),
   },
   {
     id: '3.3',

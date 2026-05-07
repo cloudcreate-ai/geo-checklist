@@ -63,7 +63,15 @@ async function runBrowserChecks(
   page: import('playwright').Page,
   results: CheckResult[],
 ): Promise<void> {
-  const { checkLinks, check404Page, testMobileResponsive, detectInterstitials, detectCaptcha, extractDates } = await import('./browser');
+  const { checkLinks, check404Page, testMobileResponsive, detectInterstitials, detectCaptcha, extractDates, crawlLocalPages, analyzeIntentCoverage } = await import('./browser');
+
+  const intentTypesLabel: Record<string, string> = {
+    informational: '信息型',
+    howto: '操作型',
+    comparison: '比较型',
+    question: '问答型',
+    commercial: '商业/交易',
+  };
 
   const url = ctx.browserUrl || ctx.finalUrl;
 
@@ -131,6 +139,24 @@ async function runBrowserChecks(
         const dateResult = await extractDates(page);
         result.passed = dateResult.passed;
         result.details = dateResult.details;
+        break;
+      }
+      case '3.2': {
+        // Content intent coverage — crawl local pages
+        const localPages = await crawlLocalPages(page, url);
+        const intent = analyzeIntentCoverage(localPages);
+        result.passed = intent.passed;
+        const coveredCount = Object.values(intent.coverage).filter((v) => v.covered).length;
+        const totalTypes = Object.keys(intent.coverage).length;
+        const detailsParts = Object.entries(intent.coverage).map(([type, v]) => {
+          const label = intentTypesLabel[type] || type;
+          return v.covered ? `${label}: ✓` : `${label}: ✗`;
+        });
+        result.details = `${coveredCount}/${totalTypes} 意图类型覆盖: ${detailsParts.join(' | ')}`;
+        if (intent.missingTypes.length > 0) {
+          const missingLabels = intent.missingTypes.map((t) => intentTypesLabel[t] || t);
+          result.recommendation = `缺少内容类型: ${missingLabels.join(', ')}`;
+        }
         break;
       }
     }
