@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { runAudit } from './analyzer';
 import { printSummary, printMarkdown } from './report';
+import { printMarkdownTerminal } from './report-terminal';
 import { writeFileSync } from 'node:fs';
 
 const program = new Command();
@@ -36,7 +37,7 @@ program
       }
 
       if (options.verbose) {
-        printSummary(report);
+        printMarkdownTerminal(report);
       }
     } catch (error) {
       process.stderr.write(chalk.red(`Error: ${error instanceof Error ? error.message : String(error)}\n`));
