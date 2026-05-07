@@ -17,7 +17,7 @@ program
   .option('-v, --verbose', 'Print human-readable summary to stderr')
   .action(async (url: string, options: { output?: string; markdown?: boolean; verbose?: boolean }) => {
     try {
-      const report = await runAudit(url);
+      const report = await runAudit(url, options.verbose);
       const domain = new URL(url).hostname.replace(/^www\./, '');
       const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
       const defaultName = `${domain}_${ts}`;

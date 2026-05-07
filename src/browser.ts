@@ -301,7 +301,7 @@ export interface PageSummary {
   metaDescription: string;
 }
 
-export async function crawlLocalPages(page: Page, baseUrl: string, maxPages: number = 20): Promise<PageSummary[]> {
+export async function crawlLocalPages(page: Page, baseUrl: string, maxPages: number = 20, verbose = false): Promise<PageSummary[]> {
   // Collect internal links
   const internalLinks = await page.evaluate((baseUrl) => {
     const base = new URL(baseUrl);
@@ -328,10 +328,17 @@ export async function crawlLocalPages(page: Page, baseUrl: string, maxPages: num
     return urls;
   }, baseUrl);
 
-  const pages: PageSummary[] = [];
+  if (verbose) {
+    process.stderr.write(`    发现 ${internalLinks.length} 个内部链接，最多爬取 ${Math.min(maxPages, internalLinks.length)} 页\n`);
+  }
 
-  for (const link of internalLinks.slice(0, maxPages)) {
+  const pages: PageSummary[] = [];
+  const toCrawl = internalLinks.slice(0, maxPages);
+
+  for (let i = 0; i < toCrawl.length; i++) {
+    const link = toCrawl[i];
     try {
+      if (verbose) process.stderr.write(`    [${i + 1}/${toCrawl.length}] 抓取 ${link}\n`);
       await page.goto(link, { waitUntil: 'domcontentloaded', timeout: 8000 });
       const summary = await page.evaluate(() => {
         const title = document.title || '';
@@ -348,7 +355,7 @@ export async function crawlLocalPages(page: Page, baseUrl: string, maxPages: num
 
       pages.push({ url: link, ...summary });
     } catch {
-      // Skip pages that fail to load
+      if (verbose) process.stderr.write(`    → 页面抓取失败，跳过\n`);
     }
   }
 
