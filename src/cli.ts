@@ -32,7 +32,8 @@ program
   .option('--max-depth <number>', 'Max crawl depth for intent analysis (default: 1, only direct links from homepage)', parseInt)
   .option('--lang <locale>', 'Output language: en (default), zh (Simplified Chinese)', 'en')
   .option('--fast', 'Skip browser-based checks for faster static-only audit')
-  .action(async (url: string, options: { output?: string; markdown?: boolean; verbose?: boolean; maxPages?: number; maxDepth?: number; lang?: string; fast?: boolean }) => {
+  .option('--page-timeout <ms>', 'Timeout for browser page load in ms (default: 30000)', parseInt)
+  .action(async (url: string, options: { output?: string; markdown?: boolean; verbose?: boolean; maxPages?: number; maxDepth?: number; lang?: string; fast?: boolean; pageTimeout?: number }) => {
     const lang = options.lang as Locale;
     if (!['en', 'zh'].includes(lang)) {
       process.stderr.write(chalk.red(`Error: Unsupported language '${lang}'. Use 'en' or 'zh'.\n`));
@@ -43,6 +44,7 @@ program
     const crawlOpts = {
       maxPages: options.maxPages ?? 20,
       maxDepth: options.maxDepth ?? 1,
+      pageTimeout: options.pageTimeout,
     };
     try {
       const report = await runAudit(url, options.verbose, crawlOpts, options.fast);

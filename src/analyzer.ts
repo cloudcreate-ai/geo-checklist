@@ -15,7 +15,7 @@ function dot(msg: string): void {
   process.stderr.write(`  \x1b[33m→\x1b[0m ${msg}\n`);
 }
 
-export async function runAudit(url: string, verbose = true, crawlOpts?: { maxPages?: number; maxDepth?: number }, fast = false): Promise<AuditReport> {
+export async function runAudit(url: string, verbose = true, crawlOpts?: { maxPages?: number; maxDepth?: number; pageTimeout?: number }, fast = false): Promise<AuditReport> {
   if (verbose) log(tf('audit_start', { url }));
 
   dot(t('fetching_html'));
@@ -37,12 +37,13 @@ export async function runAudit(url: string, verbose = true, crawlOpts?: { maxPag
   let browserUrl: string | undefined;
   let browserCtx: { browser: import('playwright').Browser; page: import('playwright').Page } | undefined;
 
+  const pageTimeout = crawlOpts?.pageTimeout;
   if (!fast) {
     if (verbose) log(t('launching_browser'));
     try {
       browserCtx = await launchBrowser();
       if (verbose) dot(t('loading_page'));
-      await loadPage(browserCtx.page, url);
+      await loadPage(browserCtx.page, url, pageTimeout);
       browserHtml = await browserCtx.page.content();
       browserUrl = browserCtx.page.url();
       if (verbose) dot(tf('browser_rendered', { url: browserUrl }));
@@ -94,7 +95,7 @@ async function runBrowserChecks(
   page: Page,
   results: CheckResult[],
   verbose: boolean,
-  crawlOpts?: { maxPages?: number; maxDepth?: number },
+  crawlOpts?: { maxPages?: number; maxDepth?: number; pageTimeout?: number },
 ): Promise<void> {
   const { checkLinks, check404Page, testMobileResponsive, detectInterstitials, detectCaptcha, extractDates, crawlLocalPages, analyzeIntentCoverage } = await import('./browser');
 
@@ -182,7 +183,7 @@ async function runBrowserChecks(
         if (verbose) dot(t('check_32_crawling'));
         const maxPages = crawlOpts?.maxPages ?? 20;
         const maxDepth = crawlOpts?.maxDepth ?? 1;
-        const localPages = await crawlLocalPages(page, url, maxPages, verbose, maxDepth);
+        const localPages = await crawlLocalPages(page, url, maxPages, verbose, maxDepth, crawlOpts?.pageTimeout);
         if (verbose) dot(tf('check_32_crawled', { count: localPages.length }));
         const intent = analyzeIntentCoverage(localPages);
         result.passed = intent.passed;
