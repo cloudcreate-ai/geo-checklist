@@ -464,3 +464,159 @@ export function analyzeIntentCoverage(pages: PageSummary[]): IntentAnalysis {
 
   return { passed, coverage, missingTypes };
 }
+
+// 12.7: Check consistent entity naming across pages
+export interface EntityConsistencyResult {
+  passed: boolean;
+  inconsistencies: { entity: string; variants: string[]; pages: string[] }[];
+  details: string;
+}
+
+export function checkEntityConsistency(pages: PageSummary[]): EntityConsistencyResult {
+  if (pages.length < 2) {
+    return { passed: true, inconsistencies: [], details: 'Not enough pages to analyze entity consistency.' };
+  }
+
+  // Extract potential entity names from page titles and H1s
+  // Entities are typically 2-4 word proper-noun-like phrases
+  const extractEntities = (text: string): Set<string> => {
+    const entities = new Set<string>();
+    // Match title-case phrases (2-4 words) like "CloudCreate AI", "Geo Checklist"
+    const titleCaseMatches = text.match(/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3})\b/g);
+    if (titleCaseMatches) {
+      titleCaseMatches.forEach((e) => entities.add(e.trim()));
+    }
+    // Also match brand-like single words (capitalized, 3+ chars, not common words)
+    const commonWords = new Set(['The', 'This', 'That', 'These', 'Those', 'What', 'When', 'Where', 'Which', 'Who', 'Why', 'How', 'About', 'Best', 'Good', 'Great', 'New', 'Old', 'Free', 'Top', 'Home', 'Blog', 'Page', 'Menu', 'Search', 'Login', 'Sign', 'Welcome', 'Introduction', 'Overview', 'Getting', 'Start', 'End', 'Next', 'Previous', 'More', 'Less', 'All', 'Some', 'Other', 'Another', 'Each', 'Every', 'Both', 'Few', 'Many', 'Much']);
+    const singleWordMatches = text.match(/\b([A-Z][a-z]{3,})\b/g);
+    if (singleWordMatches) {
+      singleWordMatches.forEach((w) => {
+        if (!commonWords.has(w)) entities.add(w);
+      });
+    }
+    return entities;
+  };
+
+  // Collect all entities across all pages
+  const pageEntities: { page: PageSummary; entities: string[] }[] = [];
+  const allEntities = new Set<string>();
+  for (const page of pages) {
+    const entityText = [page.title, page.h1, ...page.headings.slice(0, 5)].join(' ');
+    const entities = [...extractEntities(entityText)];
+    pageEntities.push({ page, entities });
+    entities.forEach((e) => allEntities.add(e));
+  }
+
+  // For entities that appear on multiple pages, check for naming variants
+  // (e.g., "CloudCreate" vs "Cloud Create" vs "CloudCreate AI")
+  const entityPages: Map<string, string[]> = new Map();
+  for (const { page, entities } of pageEntities) {
+    for (const entity of entities) {
+      if (!entityPages.has(entity)) entityPages.set(entity, []);
+      entityPages.get(entity)!.push(page.url);
+    }
+  }
+
+  // Find potential inconsistencies — entities that share base words
+  const normalizeEntity = (e: string) => e.toLowerCase().replace(/\s+/g, '');
+  const entityGroups: Map<string, string[]> = new Map();
+  for (const entity of allEntities) {
+    const key = normalizeEntity(entity);
+    if (!entityGroups.has(key)) entityGroups.set(key, []);
+    entityGroups.get(key)!.push(entity);
+  }
+
+  const inconsistencies: { entity: string; variants: string[]; pages: string[] }[] = [];
+  for (const [key, variants] of entityGroups) {
+    if (variants.length > 1) {
+      // Multiple variants of the same base entity name
+      const allPages = variants.flatMap((v) => entityPages.get(v) || []);
+      inconsistencies.push({ entity: key, variants: [...new Set(variants)], pages: [...new Set(allPages)] });
+    }
+  }
+
+  // Also check if key brand entities (from domain) are mentioned consistently
+  const domainEntity = pages[0] ? new URL(pages[0].url).hostname.replace(/^www\./, '').split('.')[0] : '';
+  if (domainEntity) {
+    const pagesMissingBrand = pages.filter((p) => {
+      const allText = [p.title, p.h1, ...p.headings, p.metaDescription].join(' ').toLowerCase();
+      return !allText.includes(domainEntity.toLowerCase()) && !allText.includes(domainEntity.toLowerCase().replace(/\s+/g, ''));
+    });
+    if (pagesMissingBrand.length > pages.length * 0.5) {
+      inconsistencies.push({
+        entity: domainEntity,
+        variants: [domainEntity],
+        pages: pagesMissingBrand.map((p) => p.url),
+      });
+    }
+  }
+
+  const passed = inconsistencies.length === 0;
+  const details = passed
+    ? 'Entity naming is consistent across all crawled pages.'
+    : `Found ${inconsistencies.length} entity naming inconsistency(ies).`;
+
+  return { passed, inconsistencies, details };
+}
+
+export interface DuplicateContentResult {
+  passed: boolean;
+  duplicates: { urlA: string; urlB: string; similarity: number }[];
+}
+
+// 3.3: Check for duplicate content across pages using Jaccard similarity
+export function checkDuplicateContent(pages: PageSummary[], threshold = 0.8): DuplicateContentResult {
+  // Filter out pages with very little content (< 50 words) to avoid false positives
+  const meaningfulPages = pages.filter((p) => p.bodyText.trim().length > 100);
+  if (meaningfulPages.length < 2) {
+    return { passed: true, duplicates: [] };
+  }
+
+  // Normalize paths for comparison (strip trailing slash, lowercase)
+  const normalizePath = (url: string) => new URL(url).pathname.replace(/\/$/, '').toLowerCase();
+
+  // Deduplicate by normalized path — if two URLs have same normalized path, keep the longer one (more content)
+  const pathMap = new Map<string, PageSummary>();
+  for (const p of meaningfulPages) {
+    const path = normalizePath(p.url);
+    const existing = pathMap.get(path);
+    if (!existing || p.bodyText.length > existing.bodyText.length) {
+      pathMap.set(path, p);
+    }
+  }
+  const dedupedPages = [...pathMap.values()];
+
+  if (dedupedPages.length < 2) {
+    return { passed: true, duplicates: [] };
+  }
+
+  // Extract word sets (lowercase, alphanumeric only)
+  const wordSets = dedupedPages.map((p) => {
+    const words = p.bodyText.toLowerCase().match(/[a-z0-9一-鿿]+/g) || [];
+    // Remove common stop words
+    const stopWords = new Set(['the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must', 'shall', 'can', 'need', 'to', 'of', 'in', 'for', 'on', 'with', 'at', 'by', 'from', 'as', 'into', 'through', 'during', 'before', 'after', 'above', 'below', 'between', 'under', 'again', 'further', 'then', 'once', 'here', 'there', 'when', 'where', 'why', 'how', 'all', 'each', 'few', 'more', 'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'so', 'than', 'too', 'very', 'just', 'and', 'but', 'if', 'or', 'because', 'until', 'while', 'about', 'against', 'this', 'that', 'these', 'those', 'i', 'me', 'my', 'we', 'our', 'you', 'your', 'he', 'him', 'his', 'she', 'her', 'it', 'its', 'they', 'them', 'their', 'what', 'which', 'who', 'whom']);
+    return new Set(words.filter((w) => !stopWords.has(w)));
+  });
+
+  const duplicates: { urlA: string; urlB: string; similarity: number }[] = [];
+
+  for (let i = 0; i < dedupedPages.length; i++) {
+    for (let j = i + 1; j < dedupedPages.length; j++) {
+      const setA = wordSets[i];
+      const setB = wordSets[j];
+      const intersection = [...setA].filter((w) => setB.has(w));
+      const union = new Set([...setA, ...setB]);
+      const jaccard = intersection.length / union.size;
+
+      if (jaccard >= threshold) {
+        duplicates.push({
+          urlA: dedupedPages[i].url,
+          urlB: dedupedPages[j].url,
+          similarity: Math.round(jaccard * 100),
+        });
+      }
+    }
+  }
+
+  return { passed: duplicates.length === 0, duplicates };
+}

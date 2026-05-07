@@ -24,6 +24,10 @@ const messages: Record<Locale, Record<string, string>> = {
     check_32_crawling: '[3.2] Crawling internal pages, analyzing intent...',
     check_32_collected: 'Collected {count} internal links, will crawl up to {max}',
     check_32_crawled: 'Crawled {count} internal pages',
+    check_33_duplicate: '[3.3] Checking for duplicate content across pages...',
+    check_33_ok: 'No duplicate content detected',
+    check_33_found: 'Found {count} potential duplicate pair(s)',
+    check_127_entity: '[12.7] Checking entity naming consistency across pages...',
     check_34_dates: '[3.4] Extracting page dates (content freshness)...',
     check_52_links: '[5.2] Checking internal links for broken URLs...',
     check_52_broken: 'Found {count} broken link(s)',
@@ -66,6 +70,25 @@ const messages: Record<Locale, Record<string, string>> = {
     status_pass: '✅ PASS',
     status_fail: '❌ FAIL',
     status_info: 'ℹ️ INFO',
+    // AdSense audit phases
+    adsense_audit_start: 'Running AdSense compliance audit for {url}',
+    adsense_running_checks: 'Running {count} AdSense checks...',
+    adsense_running_browser: 'Running AdSense browser checks...',
+    adsense_generating_report: 'Generating AdSense report...',
+    // AdSense check progress
+    adsense_check_a2: '[A.2] Analyzing template content ratio...',
+    adsense_check_a3: '[A.3] Checking content originality...',
+    adsense_check_a7: '[A.7] Checking cookie/privacy consent...',
+    adsense_check_a9: '[A.9] Site-wide directory similarity analysis...',
+    // AdSense report
+    adsense_report_title: 'AdSense Compliance Audit Report',
+    adsense_gate_label: 'Gate Status',
+    adsense_gate_ok: '✅ All gate checks passed',
+    adsense_gate_fail: '❌ Gate checks failed — AdSense rejection risk',
+    adsense_gate_warning: 'Gate checks failed. AdSense is likely to reject this site.',
+    report_critical: 'Critical Checks',
+    report_warning: 'Warnings',
+    report_info_title: 'Informational',
   },
   zh: {
     // Audit phases
@@ -90,6 +113,10 @@ const messages: Record<Locale, Record<string, string>> = {
     check_32_crawling: '[3.2] 爬取内部页面，分析内容意图...',
     check_32_collected: '发现 {count} 个内部链接，最多爬取 {max} 页',
     check_32_crawled: '已爬取 {count} 个内部页面',
+    check_33_duplicate: '[3.3] 检查跨页面内容重复度...',
+    check_33_ok: '未发现重复内容',
+    check_33_found: '发现 {count} 组疑似重复页面',
+    check_127_entity: '[12.7] 检查跨页面实体命名一致性...',
     check_34_dates: '[3.4] 提取页面日期（内容时效性）...',
     check_52_links: '[5.2] 检查内部链接是否损坏...',
     check_52_broken: '发现 {count} 个损坏链接',
@@ -132,6 +159,25 @@ const messages: Record<Locale, Record<string, string>> = {
     status_pass: '✅ 通过',
     status_fail: '❌ 失败',
     status_info: '⏭️ 信息',
+    // AdSense audit phases
+    adsense_audit_start: '开始 AdSense 合规审计 {url}',
+    adsense_running_checks: '运行 {count} 项 AdSense 检查...',
+    adsense_running_browser: '运行 AdSense 浏览器检查...',
+    adsense_generating_report: '生成 AdSense 报告...',
+    // AdSense check progress
+    adsense_check_a2: '[A.2] 分析模板内容占比...',
+    adsense_check_a3: '[A.3] 检查内容原创度...',
+    adsense_check_a7: '[A.7] 检查 Cookie/隐私同意机制...',
+    adsense_check_a9: '[A.9] 全站目录相似度分析...',
+    // AdSense report
+    adsense_report_title: 'AdSense 合规审计报告',
+    adsense_gate_label: '门槛检查状态',
+    adsense_gate_ok: '✅ 全部通过',
+    adsense_gate_fail: '❌ 未通过 — AdSense 拒绝风险',
+    adsense_gate_warning: '门槛检查未通过，AdSense 很可能会拒绝此站点。',
+    report_critical: '关键检查',
+    report_warning: '警告',
+    report_info_title: '信息',
   },
 };
 

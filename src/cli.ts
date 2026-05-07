@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import { runAudit } from './analyzer';
 import { printSummary, printMarkdown } from './report';
 import { printMarkdownTerminal } from './report-terminal';
+import { runAdsenseAudit, printMarkdown as printAdsenseMarkdown } from './adsense-runner';
 import { setLocale } from './i18n';
 import type { Locale } from './i18n';
 import { writeFileSync } from 'node:fs';
@@ -68,6 +69,63 @@ program
 
       if (options.verbose) {
         printMarkdownTerminal(report);
+      }
+    } catch (error) {
+      process.stderr.write(chalk.red(`Error: ${error instanceof Error ? error.message : String(error)}\n`));
+      process.exit(1);
+    }
+  });
+
+// AdSense compliance audit subcommand
+program
+  .command('adsense')
+  .description(
+    'Run AdSense compliance audit — checks for policy violations, content quality, and monetization readiness.\n' +
+    '\n' +
+    'Checks: Required pages, template content ratio, content originality, policy-violating content,\n' +
+    'ads.txt presence, ad network scripts, cookie consent, content depth.\n' +
+    '\n' +
+    'Gate checks (A.1/A.2/A.4) must all pass for AdSense approval likelihood.\n'
+  )
+  .argument('<url>', 'URL to audit (e.g. https://example.com or http://localhost:3000)')
+  .option('-o, --output <file>', 'Write report to file (auto-named if omitted)')
+  .option('-m, --markdown', 'Output as Markdown instead of JSON')
+  .option('-v, --verbose', 'Print human-readable summary to stderr')
+  .option('--max-pages <number>', 'Max pages to crawl for originality analysis (default: 10)', parseInt)
+  .option('--max-depth <number>', 'Max crawl depth (default: 1)', parseInt)
+  .option('--lang <locale>', 'Output language: en (default), zh (Simplified Chinese)', 'en')
+  .option('--page-timeout <ms>', 'Timeout for browser page load in ms (default: 30000)', parseInt)
+  .action(async (url: string, options: { output?: string; markdown?: boolean; verbose?: boolean; maxPages?: number; maxDepth?: number; lang?: string; pageTimeout?: number }) => {
+    const lang = options.lang as Locale;
+    if (!['en', 'zh'].includes(lang)) {
+      process.stderr.write(chalk.red(`Error: Unsupported language '${lang}'. Use 'en' or 'zh'.\n`));
+      process.exit(1);
+    }
+    setLocale(lang);
+
+    const crawlOpts = {
+      maxPages: options.maxPages ?? 10,
+      maxDepth: options.maxDepth ?? 1,
+      pageTimeout: options.pageTimeout,
+    };
+    try {
+      const report = await runAdsenseAudit(url, options.verbose, crawlOpts);
+      const domain = new URL(url).hostname.replace(/^www\./, '');
+      const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const defaultName = `${domain}_adsense_${ts}`;
+
+      if (options.markdown) {
+        const md = printAdsenseMarkdown(report);
+        const outFile = options.output || `${defaultName}.md`;
+        writeFileSync(outFile, md, 'utf-8');
+        process.stdout.write(md);
+        process.stderr.write(`\nMarkdown report written to ${outFile}\n`);
+      } else {
+        const json = JSON.stringify(report, null, 2);
+        const outFile = options.output || `${defaultName}.json`;
+        writeFileSync(outFile, json, 'utf-8');
+        process.stdout.write(json);
+        process.stderr.write(`\nJSON report written to ${outFile}\n`);
       }
     } catch (error) {
       process.stderr.write(chalk.red(`Error: ${error instanceof Error ? error.message : String(error)}\n`));

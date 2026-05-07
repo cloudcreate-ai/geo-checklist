@@ -97,7 +97,7 @@ async function runBrowserChecks(
   verbose: boolean,
   crawlOpts?: { maxPages?: number; maxDepth?: number; pageTimeout?: number },
 ): Promise<void> {
-  const { checkLinks, check404Page, testMobileResponsive, detectInterstitials, detectCaptcha, extractDates, crawlLocalPages, analyzeIntentCoverage } = await import('./browser');
+  const { checkLinks, check404Page, testMobileResponsive, detectInterstitials, detectCaptcha, extractDates, crawlLocalPages, analyzeIntentCoverage, checkDuplicateContent, checkEntityConsistency } = await import('./browser');
 
   const url = ctx.browserUrl || ctx.finalUrl;
 
@@ -201,6 +201,49 @@ async function runBrowserChecks(
         if (intent.missingTypes.length > 0) {
           const missingLabels = intent.missingTypes.map((t2) => intentTypesLabel[t2] || t2);
           result.recommendation = tf('intent_missing', { types: missingLabels.join(', ') });
+        }
+        // Cache pages for 3.3 reuse
+        (runBrowserChecks as any).__cachedPages = localPages;
+        break;
+      }
+      case '3.3': {
+        if (verbose) dot(t('check_33_duplicate'));
+        // Reuse cached pages from 3.2, or crawl if needed
+        let localPages = (runBrowserChecks as any).__cachedPages;
+        if (!localPages) {
+          const maxPages = crawlOpts?.maxPages ?? 20;
+          const maxDepth = crawlOpts?.maxDepth ?? 1;
+          localPages = await crawlLocalPages(page, url, maxPages, verbose, maxDepth, crawlOpts?.pageTimeout);
+        }
+        const dupResult = checkDuplicateContent(localPages);
+        result.passed = dupResult.passed;
+        if (dupResult.duplicates.length > 0) {
+          if (verbose) dot(tf('check_33_found', { count: dupResult.duplicates.length }));
+          const details = dupResult.duplicates.map((d) => `${d.similarity}% similar: ${new URL(d.urlA).pathname} ↔ ${new URL(d.urlB).pathname}`).join('; ');
+          result.details = `Found ${dupResult.duplicates.length} duplicate pair(s): ${details}`;
+          result.recommendation = 'Use canonical tags or rewrite duplicate pages.';
+        } else {
+          if (verbose) dot(t('check_33_ok'));
+          result.details = 'No duplicate content detected across crawled pages.';
+        }
+        break;
+      }
+      case '12.7': {
+        if (verbose) dot(t('check_127_entity'));
+        // Reuse cached pages from 3.2
+        let localPages = (runBrowserChecks as any).__cachedPages;
+        if (!localPages) {
+          const maxPages = crawlOpts?.maxPages ?? 20;
+          const maxDepth = crawlOpts?.maxDepth ?? 1;
+          localPages = await crawlLocalPages(page, url, maxPages, verbose, maxDepth, crawlOpts?.pageTimeout);
+        }
+        const entityResult = checkEntityConsistency(localPages);
+        result.passed = entityResult.passed;
+        result.details = entityResult.details;
+        if (entityResult.inconsistencies.length > 0) {
+          const details = entityResult.inconsistencies.map((inc) => `"${inc.entity}" → variants: ${inc.variants.join(', ')}`).join('; ');
+          result.details += ` ${details}`;
+          result.recommendation = 'Use consistent entity/brand naming across all pages.';
         }
         break;
       }

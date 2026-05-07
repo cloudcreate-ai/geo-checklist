@@ -28,7 +28,7 @@ export const contentQualityChecks: CheckDefinition[] = [
     id: '3.3',
     title: 'No duplicate content across pages',
     severity: 'critical',
-    execute: () => ({ id: '3.3', category: CATEGORY, title: 'No duplicate content across pages', severity: 'critical', passed: false, details: 'Check requires multi-page crawling and comparison. Deferred to Phase 2.' }),
+    execute: () => ({ id: '3.3', category: CATEGORY, title: 'No duplicate content across pages', severity: 'critical', passed: false, details: 'Requires multi-page crawl analysis.' }),
   },
   {
     id: '3.4',

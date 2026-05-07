@@ -106,6 +106,6 @@ export const answerEngineChecks: CheckDefinition[] = [
     id: '12.7',
     title: 'Consistent entity naming across pages',
     severity: 'info',
-    execute: () => ({ id: '12.7', category: CATEGORY, title: 'Consistent entity naming across pages', severity: 'info', passed: false, details: 'Requires multi-page analysis. Deferred.' }),
+    execute: () => ({ id: '12.7', category: CATEGORY, title: 'Consistent entity naming across pages', severity: 'info', passed: false, details: 'Requires multi-page crawl analysis.' }),
   },
 ];
