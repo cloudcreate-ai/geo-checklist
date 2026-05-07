@@ -38,6 +38,7 @@ const messages: Record<Locale, Record<string, string>> = {
     crawl_depth: '--- Depth {depth} ---',
     crawling_page: '[{n}] Fetching {url}',
     crawl_failed: '→ Page fetch failed, skipping',
+    fast_skipped: 'Skipping browser checks (--fast mode)',
     // Intent types
     intent_informational: 'Informational',
     intent_howto: 'How-to / Tutorial',
@@ -103,6 +104,7 @@ const messages: Record<Locale, Record<string, string>> = {
     crawl_depth: '--- 深度 {depth} ---',
     crawling_page: '[{n}] 抓取 {url}',
     crawl_failed: '页面抓取失败，跳过',
+    fast_skipped: '跳过浏览器检查（--fast 模式）',
     // Intent types
     intent_informational: '信息型',
     intent_howto: '操作型',

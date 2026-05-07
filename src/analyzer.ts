@@ -15,7 +15,7 @@ function dot(msg: string): void {
   process.stderr.write(`  \x1b[33m→\x1b[0m ${msg}\n`);
 }
 
-export async function runAudit(url: string, verbose = true, crawlOpts?: { maxPages?: number; maxDepth?: number }): Promise<AuditReport> {
+export async function runAudit(url: string, verbose = true, crawlOpts?: { maxPages?: number; maxDepth?: number }, fast = false): Promise<AuditReport> {
   if (verbose) log(tf('audit_start', { url }));
 
   dot(t('fetching_html'));
@@ -32,21 +32,25 @@ export async function runAudit(url: string, verbose = true, crawlOpts?: { maxPag
 
   const doc = parseHtml(fetchResult.html);
 
-  // Try browser rendering for JS-heavy pages
+  // Try browser rendering for JS-heavy pages (skip in fast mode)
   let browserHtml: string | undefined;
   let browserUrl: string | undefined;
   let browserCtx: { browser: import('playwright').Browser; page: import('playwright').Page } | undefined;
 
-  if (verbose) log(t('launching_browser'));
-  try {
-    browserCtx = await launchBrowser();
-    if (verbose) dot(t('loading_page'));
-    await loadPage(browserCtx.page, url);
-    browserHtml = await browserCtx.page.content();
-    browserUrl = browserCtx.page.url();
-    if (verbose) dot(tf('browser_rendered', { url: browserUrl }));
-  } catch {
-    if (verbose) dot(t('browser_failed'));
+  if (!fast) {
+    if (verbose) log(t('launching_browser'));
+    try {
+      browserCtx = await launchBrowser();
+      if (verbose) dot(t('loading_page'));
+      await loadPage(browserCtx.page, url);
+      browserHtml = await browserCtx.page.content();
+      browserUrl = browserCtx.page.url();
+      if (verbose) dot(tf('browser_rendered', { url: browserUrl }));
+    } catch {
+      if (verbose) dot(t('browser_failed'));
+    }
+  } else if (verbose) {
+    dot(t('fast_skipped'));
   }
 
   const ctx: AuditContext = {

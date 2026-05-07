@@ -31,7 +31,8 @@ program
   .option('--max-pages <number>', 'Max pages to crawl for intent analysis (default: 20)', parseInt)
   .option('--max-depth <number>', 'Max crawl depth for intent analysis (default: 1, only direct links from homepage)', parseInt)
   .option('--lang <locale>', 'Output language: en (default), zh (Simplified Chinese)', 'en')
-  .action(async (url: string, options: { output?: string; markdown?: boolean; verbose?: boolean; maxPages?: number; maxDepth?: number; lang?: string }) => {
+  .option('--fast', 'Skip browser-based checks for faster static-only audit')
+  .action(async (url: string, options: { output?: string; markdown?: boolean; verbose?: boolean; maxPages?: number; maxDepth?: number; lang?: string; fast?: boolean }) => {
     const lang = options.lang as Locale;
     if (!['en', 'zh'].includes(lang)) {
       process.stderr.write(chalk.red(`Error: Unsupported language '${lang}'. Use 'en' or 'zh'.\n`));
@@ -44,7 +45,7 @@ program
       maxDepth: options.maxDepth ?? 1,
     };
     try {
-      const report = await runAudit(url, options.verbose, crawlOpts);
+      const report = await runAudit(url, options.verbose, crawlOpts, options.fast);
       const domain = new URL(url).hostname.replace(/^www\./, '');
       const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
       const defaultName = `${domain}_${ts}`;
